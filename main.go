@@ -4,13 +4,14 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 	"github.com/glvr182/appie"
+	"github.com/microcosm-cc/bluemonday"
 )
 
 func main() {
@@ -57,20 +58,41 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 		return
 	}
 
-	if strings.HasPrefix(m.Content, "!ah subscribe ") {
+	if strings.HasPrefix(m.Content, "!ah info ") {
 		args := strings.Fields(m.Content)
-		productID, err := strconv.Atoi(args[3])
-
-		re := regexp.MustCompile("[0-9]+")
-		channel := re.FindString(args[2])
+		productID, err := strconv.Atoi(args[2])
 
 		product, err := appie.ProductByID(productID)
-
 		if err != nil {
-			s.ChannelMessageSend(channel, "Product not found")
+			s.ChannelMessageSend(m.ChannelID, "Product not found")
 		}
 
-		fmt.Printf(product.Title)
-		s.ChannelMessageSend(channel, product.Title)
+		albertEmbed := new(discordgo.MessageEmbed)
+
+		albertEmbed.Title = product.Title
+		albertEmbed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: product.Images[0].URL}
+
+		// Remove all html tags from summary and set as description.
+		albertEmbed.Description = bluemonday.StrictPolicy().Sanitize(product.Summary)
+
+		// Fields with price and availablity info.
+		albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Brand", Value: product.Brand, Inline: true})
+		albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Price", Value: fmt.Sprintf("€ %.2f", product.Price.Now), Inline: true})
+		albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Available", Value: strings.Title(fmt.Sprintf("%t", product.Orderable)), Inline: true})
+
+		// If product is in sale add more info
+		if product.Control.Theme == "bonus" {
+			albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus", Value: "Yes", Inline: true})
+			albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus Type", Value: product.Shield.Text, Inline: true})
+
+			// Set date in correct format.
+			t, _ := time.Parse("2006-01-02", product.Discount.EndDate)
+			albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus end", Value: t.Format("Mon, 02 Jan 2006"), Inline: true})
+		} else {
+			albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus", Value: "No", Inline: true})
+		}
+
+		// Send message to channel
+		s.ChannelMessageSendEmbed(m.ChannelID, albertEmbed)
 	}
 }
