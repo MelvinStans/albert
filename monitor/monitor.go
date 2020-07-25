@@ -40,13 +40,13 @@ func (m *Monitor) Run() error {
 		case <-m.ctx.Done():
 			return nil
 		case <-ticker.C:
-			for _, target := range m.watching {
+			for i, target := range m.watching {
 				product, err := appie.ProductByID(target.ID)
 				if err != nil {
 					return err
 				}
-				if target.Price.Now != product.Price.Now || target.Control.Theme != product.Price.Theme {
-					target = product
+				if (target.Price.Now != product.Price.Now || target.Control.Theme != product.Control.Theme) && product.Discount.Theme != "" {
+					m.watching[i] = product
 					m.out <- product
 				}
 			}

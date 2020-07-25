@@ -4,8 +4,8 @@ github.com/bwmarrin/discordgo v0.21.1 h1:UI2PWwzvn5IFuscYcDc6QB/duhs9MUIjQ4HclcI
 github.com/bwmarrin/discordgo v0.21.1/go.mod h1:c1WtWUGN6nREDmzIpyTp/iD3VYt4Fpx+bVyfBG7JE+M=
 github.com/chris-ramon/douceur v0.2.0 h1:IDMEdxlEUUBYBKE4z/mJnFyVXox+MjuEVDJNN27glkU=
 github.com/chris-ramon/douceur v0.2.0/go.mod h1:wDW5xjJdeoMm1mRt4sD4c/LbF/mWdEpRXQKjTR8nIBE=
-github.com/glvr182/appie v0.0.0-20200723174624-ab0366c26045 h1:Mu1JeMbCJfYQj0RvDb1iYFBOby/Et913CHd+4GHf4pE=
-github.com/glvr182/appie v0.0.0-20200723174624-ab0366c26045/go.mod h1:FB7vy4dKQn+xkcJT7FF4k0Nr2DYtAxB0DH1PRmmYmx0=
+github.com/glvr182/appie v0.0.0-20200725190657-06fa7257a81c h1:qQMELJk3LTIftfBhtxfIfpHyAVGYtIEEtJSO8k9TnqQ=
+github.com/glvr182/appie v0.0.0-20200725190657-06fa7257a81c/go.mod h1:FB7vy4dKQn+xkcJT7FF4k0Nr2DYtAxB0DH1PRmmYmx0=
 github.com/gorilla/css v1.0.0 h1:BQqNyPTi50JCFMTw/b67hByjMVXZRwGha6wxVGkeihY=
 github.com/gorilla/css v1.0.0/go.mod h1:Dn721qIggHpt4+EFCcTLTU/vk5ySda2ReITrtgBl60c=
 github.com/gorilla/websocket v1.4.0 h1:WDFjx/TMzVgy9VdMMQi2K2Emtwi2QcUQsztZ/zLaH/Q=

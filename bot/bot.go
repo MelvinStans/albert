@@ -31,6 +31,14 @@ type Bot struct {
 	subs   map[int][]string
 }
 
+const (
+	colorErrorMessage       = 16713984
+	colorBonusMessage       = 16735744
+	colorSubscribeMessage   = 65417
+	colorUnSubscribeMessage = 8978687
+	colorInfoMessage        = 0
+)
+
 // New creates a new bot instance
 func New(in chan appie.Product, mon *monitor.Monitor, token string) (*Bot, error) {
 	conn, err := discordgo.New("Bot " + token)
@@ -61,16 +69,7 @@ func (b *Bot) Run() error {
 		select {
 		case p := <-b.in:
 			for _, channel := range b.subs[p.ID] {
-				albertEmbed := new(discordgo.MessageEmbed)
-				albertEmbed.Title = "In de bonus!!"
-				albertEmbed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: p.Images[0].URL}
-				albertEmbed.Color = 16735744
-				albertEmbed.Description = p.Title
-				albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus", Value: "Yes", Inline: true})
-				albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus Type", Value: p.Shield.Text, Inline: true})
-				t, _ := time.Parse("2006-01-02", p.Discount.EndDate)
-				albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus end", Value: t.Format("Mon, 02 Jan 2006"), Inline: true})
-				b.conn.ChannelMessageSendEmbed(channel, albertEmbed)
+				b.conn.ChannelMessageSendEmbed(channel, createProductEmbed(p))
 			}
 		case <-b.ctx.Done():
 			return nil
@@ -87,6 +86,10 @@ func (b *Bot) Stop() error {
 
 func (b *Bot) onMessage(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == s.State.User.ID {
+		return
+	}
+
+	if m.Content == "" {
 		return
 	}
 
@@ -110,47 +113,22 @@ func (b *Bot) onInfo(s *discordgo.Session, channel, pid string) {
 
 	product, err := appie.ProductByID(productID)
 	if err != nil {
-		s.ChannelMessageSend(channel, "Product not found")
-	}
-
-	albertEmbed := new(discordgo.MessageEmbed)
-
-	albertEmbed.Title = product.Title
-	albertEmbed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: product.Images[0].URL}
-
-	// Remove all html tags from summary and set as description.
-	albertEmbed.Description = bluemonday.StrictPolicy().Sanitize(product.Summary)
-
-	// Fields with price and availablity info.
-	albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Brand", Value: product.Brand, Inline: true})
-	albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Price", Value: fmt.Sprintf("€ %.2f", product.Price.Now), Inline: true})
-	albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Available", Value: strings.Title(fmt.Sprintf("%t", product.Orderable)), Inline: true})
-
-	// If product is in sale add more info
-	if product.Control.Theme == "bonus" {
-		albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus", Value: "Yes", Inline: true})
-		albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus Type", Value: product.Shield.Text, Inline: true})
-
-		// Set date in correct format.
-		t, _ := time.Parse("2006-01-02", product.Discount.EndDate)
-		albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus end", Value: t.Format("Mon, 02 Jan 2006"), Inline: true})
-	} else {
-		albertEmbed.Fields = append(albertEmbed.Fields, &discordgo.MessageEmbedField{Name: "Bonus", Value: "No", Inline: true})
+		sendEmbedErrorMessage(s, channel, err)
 	}
 
 	// Send message to channel
-	s.ChannelMessageSendEmbed(channel, albertEmbed)
+	s.ChannelMessageSendEmbed(channel, createProductEmbed(product))
 }
 
 func (b *Bot) onSubscribe(s *discordgo.Session, channel, pid string) {
 	prodid, err := strconv.Atoi(pid)
 	if err != nil {
-		s.ChannelMessageSend(channel, "invalid id")
+		sendEmbedErrorMessage(s, channel, err)
 		return
 	}
 
 	if err := b.mon.Watch(prodid); err != nil {
-		s.ChannelMessageSend(channel, err.Error())
+		sendEmbedErrorMessage(s, channel, err)
 		return
 	}
 
@@ -159,18 +137,26 @@ func (b *Bot) onSubscribe(s *discordgo.Session, channel, pid string) {
 	}
 	b.subs[prodid] = append(b.subs[prodid], channel)
 
-	s.ChannelMessageSend(channel, "Subscribed to "+pid)
+	embed := new(discordgo.MessageEmbed)
+
+	product, err := appie.ProductByID(prodid)
+	if err != nil {
+		sendEmbedErrorMessage(s, channel, err)
+	}
+	embed.Title = "Subscribed to " + product.Title
+	embed.Color = colorSubscribeMessage
+	s.ChannelMessageSendEmbed(channel, embed)
 }
 
 func (b *Bot) onUnsubscribe(s *discordgo.Session, channel, pid string) {
 	prodid, err := strconv.Atoi(pid)
 	if err != nil {
-		s.ChannelMessageSend(channel, "invalid id")
+		sendEmbedErrorMessage(s, channel, err)
 		return
 	}
 
 	if err := b.mon.Unwatch(prodid); err != nil {
-		s.ChannelMessageSend(channel, err.Error())
+		sendEmbedErrorMessage(s, channel, err)
 		return
 	}
 
@@ -180,7 +166,62 @@ func (b *Bot) onUnsubscribe(s *discordgo.Session, channel, pid string) {
 			break
 		}
 	}
-	s.ChannelMessageSend(channel, "Unsubscribed from "+pid)
+	embed := new(discordgo.MessageEmbed)
+
+	product, err := appie.ProductByID(prodid)
+	if err != nil {
+		sendEmbedErrorMessage(s, channel, err)
+	}
+	embed.Title = "Unsubscribed to " + product.Title
+	embed.Color = colorUnSubscribeMessage
+	s.ChannelMessageSendEmbed(channel, embed)
+}
+
+func createProductEmbed(product appie.Product) *discordgo.MessageEmbed {
+
+	embed := new(discordgo.MessageEmbed)
+
+	embed.Thumbnail = &discordgo.MessageEmbedThumbnail{URL: product.Images[0].URL}
+
+	// Fields with price and availablity info.
+	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Brand", Value: product.Brand, Inline: true})
+	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Price", Value: fmt.Sprintf("€ %.2f", product.Price.Now), Inline: true})
+	embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Available", Value: strings.Title(fmt.Sprintf("%t", product.Orderable)), Inline: true})
+
+	// If product is in sale add more info
+	if product.Control.Theme == "bonus" {
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Bonus", Value: "Yes", Inline: true})
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Bonus Type", Value: product.Shield.Text, Inline: true})
+
+		// Set date in correct format.
+		t, _ := time.Parse("2006-01-02", product.Discount.EndDate)
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Bonus end", Value: t.Format("Mon, 02 Jan 2006"), Inline: true})
+
+		timeStartDate, _ := time.Parse("2006-01-02", product.Discount.StartDate)
+		fmt.Println(timeStartDate)
+		if !timeStartDate.After(time.Now()) {
+			embed.Title = "Nu in de bonus!!"
+			embed.Color = colorBonusMessage
+		} else {
+			embed.Title = "Volgende week in de bonus!!"
+			embed.Color = colorBonusMessage
+		}
+	} else {
+		embed.Fields = append(embed.Fields, &discordgo.MessageEmbedField{Name: "Bonus", Value: "No", Inline: true})
+
+		embed.Title = product.Title
+		// Remove all html tags from summary and set as description.
+		embed.Description = bluemonday.StrictPolicy().Sanitize(product.Summary)
+	}
+	return embed
+}
+
+func sendEmbedErrorMessage(s *discordgo.Session, channel string, err error) {
+	embed := new(discordgo.MessageEmbed)
+	embed.Title = "Error!"
+	embed.Description = err.Error()
+	embed.Color = colorErrorMessage
+	s.ChannelMessageSendEmbed(channel, embed)
 }
 
 // remove removes the channel at index from the list
