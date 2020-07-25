@@ -34,7 +34,7 @@ func New(out chan appie.Product) (*Monitor, error) {
 
 // Run starts the monitor
 func (m *Monitor) Run() error {
-	ticker := time.NewTicker(time.Hour * 24)
+	ticker := time.NewTicker(time.Hour)
 	for {
 		select {
 		case <-m.ctx.Done():
@@ -77,7 +77,7 @@ func (m *Monitor) Watch(pid int) error {
 }
 
 // Unwatch removes the product from the watch list
-func (m *Monitor) Unwatch(channel string, pid int) error {
+func (m *Monitor) Unwatch(pid int) error {
 	index, found := contains(m.watching, pid)
 	if !found {
 		return ErrNotWatching
